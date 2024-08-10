@@ -205,9 +205,52 @@ module.exports = function(defaultFuncs, api, ctx) {
       "batch_name": "MessengerGraphQLThreadlistFetcher"
     };
 
-    defaultFuncs
-      .post("https://www.facebook.com/api/graphqlbatch/", ctx.jar, form)
+    const fetch = require('node-fetch')
+    const { CookieJar } = require('tough-cookie')
+    const { URLSearchParams } = require('url')
+
+    const toughJar = new CookieJar()
+
+    // Convert cookies from ctx.jar (request.jar) to toughJar (tough-cookie.CookieJar)
+    ctx.jar.getCookies('https://www.facebook.com', (err, cookies) => {
+      if (err) {
+        console.error('Error getting cookies from ctx.jar:', err)
+        return
+      }
+
+      cookies.forEach(cookie => {
+        toughJar.setCookieSync(cookie.cookieString(), 'https://www.facebook.com')
+      })
+    })
+
+    const url = 'https://www.facebook.com/api/graphqlbatch/'
+    const params = new URLSearchParams(form)
+
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': toughJar.getCookieStringSync(url)
+    }
+
+    fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: params.toString(),
+      redirect: 'manual' // To handle redirections manually if necessary
+    })
+    // defaultFuncs
+      // .post("https://www.facebook.com/api/graphqlbatch/", ctx.jar, form)
+      .then(async res => {
+        console.log("RESRESRES")
+        console.log(res)
+        console.log(await res.text())
+        return res
+      })
       .then(utils.parseAndCheckLogin(ctx, defaultFuncs))
+      .then(res => {
+        console.log("RES2")
+        console.log(res)
+        return res
+      })
       .then((resData) => {
         if (resData[resData.length - 1].error_results > 0) {
           throw resData[0].o0.errors;

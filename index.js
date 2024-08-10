@@ -488,12 +488,55 @@ function loginHelper(appState, email, password, globalOptions, callback, prCallb
       var str = c.key + "=" + c.value + "; expires=" + c.expires + "; domain=" + c.domain + "; path=" + c.path + ";";
       jar.setCookie(str, "http://" + c.domain);
     });
+    /** TODO:
+     * Check websocket traffic
+     * Check what graphql returns through the extension
+     *  */
 
     // Load the main page.
-    mainPromise = utils
-      .get('https://www.facebook.com/', jar, null, globalOptions, { noRef: true })
-      .then(utils.saveCookies(jar));
+
+    console.log("HERE's THE PROBLEM")
+
+    // TODO HERE: Rewrite this using node-fetch might solve it?
+    const tfunc = async () => {
+      console.log("STARTING LOADING")
+      const fetch = require('node-fetch')
+      const { CookieJar } = require('tough-cookie')
+      const { URL } = require('url')
+      const toughJar = new CookieJar()
+
+      // Assuming appState is provided and contains cookies
+      appState.forEach(c => {
+        const str = `${c.key}=${c.value}; expires=${c.expires}; domain=${c.domain}; path=${c.path};`
+        toughJar.setCookieSync(str, `http://${c.domain}`)
+      })
+      const url = 'https://www.facebook.com/'
+      const headers = {
+        // 'User-Agent': no user agent. It kicks us out if we add it
+        'Cookie': toughJar.getCookieStringSync(url)
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers,
+        redirect: 'manual' // To handle redirections manually
+      })
+
+      const body = await response.text()
+      console.log("BODYBODYBODY")
+      console.log(body)
+      // console.log(response)
+      return { ...response, body }
+    }
+    tfunc()
+
+    mainPromise = tfunc()
+    // mainPromise = utils
+    //   .get('https://www.facebook.com/', jar, null, globalOptions, { noRef: true })
+    //   .then(utils.saveCookies(jar));
   } else {
+    // TODO: Try a different request library. If that doesn't work, try requests from puppeteer
+
     // Open the main page, then we login with the given credentials and finally
     // load the main page again (it'll give us some IDs that we need)
     mainPromise = utils
@@ -511,6 +554,7 @@ function loginHelper(appState, email, password, globalOptions, callback, prCallb
   var _defaultFuncs = null;
   var api = null;
 
+  // -> Here res.body is null. I should rewrite it.
   mainPromise = mainPromise
     .then(function (res) {
       // Hacky check for the redirection that happens on some ISPs, which doesn't return statusCode 3xx
@@ -525,6 +569,7 @@ function loginHelper(appState, email, password, globalOptions, callback, prCallb
     })
     .then(function (res) {
       var html = res.body;
+      console.log(html)
       var stuff = buildAPI(globalOptions, html, jar);
       ctx = stuff[0];
       _defaultFuncs = stuff[1];
@@ -578,7 +623,7 @@ function login(loginData, options, callback) {
     logRecordSize: defaultLogRecordSize,
     online: true,
     emitReady: false,
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/603.3.8 (KHTML, like Gecko) Version/10.1.2 Safari/603.3.8"
+    // userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/603.3.8 (KHTML, like Gecko) Version/10.1.2 Safari/603.3.8"
   };
 
   setOptions(globalOptions, options);
